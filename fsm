@@ -1,0 +1,54 @@
+module fsm (
+    input logic clk,
+    input logic reset,
+    input logic [3:0] item_selected,
+    input logic [7:0] item_cost,
+    input logic [7:0] total_money,
+    input logic buy_button,          // Buy button input
+    output logic [4:0] state
+);
+
+    logic remaining;
+    
+    typedef enum{IDLE, ACCEPT_COINS, SELECT_ITEM, DISPENSE_ITEM} STATES;
+    STATES present_state, next_state;
+
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset) 
+            present_state <= IDLE;
+        else 
+            present_state <= next_state;
+    end
+
+    always_comb begin
+        state = 0;
+        case (present_state)
+            IDLE: begin
+            state = 0;
+                if (total_money > 0) 
+                    next_state = ACCEPT_COINS;
+                else
+                    next_state = IDLE;
+                end
+            ACCEPT_COINS: begin
+            state = total_money;
+                if (item_selected != 0) 
+                    next_state = SELECT_ITEM;
+                else
+                    next_state = ACCEPT_COINS;
+                end
+            SELECT_ITEM: begin
+            state = item_cost;
+                if (buy_button && total_money >= item_cost) 
+                    next_state = DISPENSE_ITEM;
+                else
+                    next_state = SELECT_ITEM;
+                end
+            DISPENSE_ITEM: begin
+            state = (total_money - item_cost);
+            if (item_selected != 0 & buy_button)
+                next_state = IDLE;
+                end
+        endcase
+    end
+endmodule
