@@ -1,72 +1,68 @@
-module top_module (
-    input  clk,
-    input  reset,
-    input  one, five, ten,    // Button inputs representing coins
-    input  [3:0] item_input,     // Button inputs for item selection
-    input  buy_button,           // Buy button
-    output  [7:0] segs, // Value to be displayed
-    output  [3:0] an
+module fsm (
+    input  logic clk,
+    input  logic reset,
+    input  logic [3:0] item_selected,
+    input  logic [7:0] item_cost,
+    input  logic buy_button,
+    input logic [7:0] total_money,
+    output logic [7:0] remaining_money,
+    output logic [7:0] state,
+    output logic update_total_money // Signal to update total_money
 );
-    logic [3:0] coin_value;
-    logic [2:0] item_cost;
-    logic [7:0] money_in;
-    logic [7:0] total_money;
-    logic [7:0] display;
-    logic [7:0] remaining_money;
-    logic update_total_money;
-    logic t1;
+    typedef enum {IDLE, ACCEPT_COINS, SELECT_ITEM, DISPENSE_ITEM} STATES;
+    STATES present_state, next_state;
 
-    //clock divider
-    clk_div2 clock_div20(
-        .clk(clk), 
-        .sclk(t1)
-     );
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset) 
+            present_state <= IDLE;
+        else 
+            present_state <= next_state;
+    end
 
+    always_comb begin
+        // Default outputs
+        state = 8'b0;
+        remaining_money = total_money;
+        update_total_money = 1'b0;
 
-    //coin encoder
-    coin_encoder coin_encoder0 (
-        .one(one),
-        .five(five),
-        .ten(ten),        
-        .coin_value(coin_value)
-    );
+        case (present_state)
+            IDLE: begin
+                state = 8'b0;
+                if (total_money <= 0)
+                    next_state = ACCEPT_COINS;
+                else
+                    next_state = IDLE;
+            end
 
-    //cost encoder
-    item_encoder item_encoder0 (
-        .item_input(item_input),
-        .item_cost(item_cost)
-    );
+            ACCEPT_COINS: begin
+                state = total_money;
+                if (item_selected != 0)
+                    next_state = SELECT_ITEM;
+                else
+                    next_state = ACCEPT_COINS;
+            end
 
-    // Instantiate accumulator
-    accumulator money_accumulator (
-        .clk(t1),
-        .reset(reset),
-        .LD(one | five | ten),
-        .D({4'b0000, coin_value}),
-        .update_total_money(update_total_money),
-        .remaining_money(remaining_money),
-        .Q(total_money)
-    );
-    
-    // Instantiate FSM
-    fsm fsm (
-        .clk(t1),
-        .reset(reset),
-        .item_selected(item_input),
-        .item_cost({5'b00000, item_cost}),
-        .total_money(total_money),
-        .buy_button(buy_button),
-        .remaining_money(remaining_money),
-        .state(display),
-        .update_total_money(update_total_money)
-    );
+        SELECT_ITEM: begin
+            state = total_money;
+            if (buy_button && total_money >= item_cost) begin
+                next_state = DISPENSE_ITEM;
+                remaining_money = total_money - item_cost; // Update remaining_money
+                update_total_money = 1'b1; // Signal to update total_money
+            end 
+            else if (item_selected == 0) begin
+                next_state = ACCEPT_COINS;
+            end
+            else
+                next_state = SELECT_ITEM;
+        end
 
-    //7-segment Display
-    univ_sseg univ_segg0 (
-        .clk(clk),
-        .valid(1'b1),
-        .cnt1({6'b000000,display}),
-        .ssegs(segs),
-        .disp_en(an)
-     );
+            DISPENSE_ITEM: begin
+                state = remaining_money;
+                if (item_selected != 0)
+                    next_state = ACCEPT_COINS;
+                else
+                    next_state = IDLE;
+            end
+        endcase
+    end
 endmodule
