@@ -9,8 +9,18 @@ module top_module (
 );
     logic [3:0] coin_value;
     logic [2:0] item_cost;
+    logic [7:0] money_in;
     logic [7:0] total_money;
-    logic [4:0] fsm_state;
+    logic [7:0] display;
+    logic [7:0] remaining_money;
+    logic update_total_money;
+    logic t1;
+
+    //clock divider
+    clk_div2 clock_div20(
+        .clk(clk), 
+        .sclk(t1)
+     );
 
 
     //coin encoder
@@ -29,29 +39,33 @@ module top_module (
 
     // Instantiate accumulator
     accumulator money_accumulator (
-        .clk(clk),
+        .clk(t1),
         .reset(reset),
         .LD(one | five | ten),
-        .D({4'b0000,coin_value}),
+        .D({4'b0000, coin_value}),
+        .update_total_money(update_total_money),
+        .remaining_money(remaining_money),
         .Q(total_money)
     );
-
+    
     // Instantiate FSM
     fsm fsm (
-        .clk(clk),
+        .clk(t1),
         .reset(reset),
         .item_selected(item_input),
-        .item_cost({5'b00000,item_cost}),
+        .item_cost({5'b00000, item_cost}),
         .total_money(total_money),
         .buy_button(buy_button),
-        .state(fsm_state)
+        .remaining_money(remaining_money),
+        .state(display),
+        .update_total_money(update_total_money)
     );
 
     //7-segment Display
     univ_sseg univ_segg0 (
         .clk(clk),
         .valid(1'b1),
-        .cnt1({9'b000000000,fsm_state}),
+        .cnt1({6'b000000,display}),
         .ssegs(segs),
         .disp_en(an)
      );
