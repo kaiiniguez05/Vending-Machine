@@ -1,16 +1,15 @@
 module fsm (
-    input logic clk,
-    input logic reset,
-    input logic [3:0] item_selected,
-    input logic [7:0] item_cost,
+    input  logic clk,
+    input  logic reset,
+    input  logic [3:0] item_selected,
+    input  logic [7:0] item_cost,
+    input  logic buy_button,
     input logic [7:0] total_money,
-    input logic buy_button,          // Buy button input
-    output logic [4:0] state
+    output logic [7:0] remaining_money,
+    output logic [7:0] state,
+    output logic update_total_money // Signal to update total_money
 );
-
-    logic remaining;
-    
-    typedef enum{IDLE, ACCEPT_COINS, SELECT_ITEM, DISPENSE_ITEM} STATES;
+    typedef enum {IDLE, ACCEPT_COINS, SELECT_ITEM, DISPENSE_ITEM} STATES;
     STATES present_state, next_state;
 
     always_ff @(posedge clk or posedge reset) begin
@@ -21,34 +20,50 @@ module fsm (
     end
 
     always_comb begin
-        state = 0;
+        // Default outputs
+        state = 8'b0;
+        remaining_money = total_money;
+        update_total_money = 1'b0;
+
         case (present_state)
             IDLE: begin
-            state = 0;
-                if (total_money > 0) 
+                state = 8'b0;
+                if (total_money <= 0)
                     next_state = ACCEPT_COINS;
                 else
                     next_state = IDLE;
-                end
+            end
+
             ACCEPT_COINS: begin
-            state = total_money;
-                if (item_selected != 0) 
+                state = total_money;
+                if (item_selected != 0)
                     next_state = SELECT_ITEM;
                 else
                     next_state = ACCEPT_COINS;
-                end
-            SELECT_ITEM: begin
-            state = item_cost;
-                if (buy_button && total_money >= item_cost) 
-                    next_state = DISPENSE_ITEM;
-                else
-                    next_state = SELECT_ITEM;
-                end
+            end
+
+        SELECT_ITEM: begin
+            state = total_money;
+            if (buy_button && total_money >= item_cost) begin
+                next_state = DISPENSE_ITEM;
+                remaining_money = total_money - item_cost; // Update remaining_money
+                update_total_money = 1'b1; // Signal to update total_money
+            end 
+            else if (item_selected == 0) begin
+                next_state = ACCEPT_COINS;
+            end
+            else
+                next_state = SELECT_ITEM;
+        end
+
             DISPENSE_ITEM: begin
-            state = (total_money - item_cost);
-            if (item_selected != 0 & buy_button)
-                next_state = IDLE;
-                end
+                state = remaining_money;
+                if (item_selected != 0)
+                    next_state = ACCEPT_COINS;
+                else
+                    next_state = IDLE;
+            end
         endcase
     end
 endmodule
+
